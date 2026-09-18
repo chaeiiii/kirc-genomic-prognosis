@@ -19,3 +19,6 @@ mlruns/
 
 # Windows
 Thumbs.db
+
+# VS Code
+.vscode/
