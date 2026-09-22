@@ -22,3 +22,6 @@ Thumbs.db
 
 # VS Code
 .vscode/
+
+# External data
+data/external/
