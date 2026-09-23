@@ -741,7 +741,7 @@ Clinical / RNA cohort 구축 ✅
 * `reports/figures/fig6_clinical_rna_local_explanations.png`
 
   * Low / Middle / High-risk 대표 Test 환자 3명의 patient-level Local XAI
-  
+
 * `reports/figures/fig6_high_risk_local_contributions.png`
 
   * High-risk 대표 환자의 feature contribution Local XAI
@@ -807,11 +807,11 @@ Clinical / RNA cohort 구축 ✅
 
 ### 7. GitHub 상태
 
-* Commit: **미확인**
+* Commit: ✅
 
-* Push: **미확인**
+* Push: ✅
 
-* Commit message: **미확인**
+* Commit message: `complete clinical RNA XAI analysis`
 
 ### 8. 현재 프로젝트 진행 위치
 
