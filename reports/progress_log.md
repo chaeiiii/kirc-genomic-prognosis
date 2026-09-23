@@ -637,3 +637,234 @@ Clinical / RNA cohort 구축 ✅
     - similar patients
     - OOD warning
     순서로 end-to-end demo 구현
+
+## 2026-09-23
+
+### 1. 오늘의 목표
+
+* [x] Clinical+RNA frozen CoxNet 기반 Global XAI 수행
+* [x] Clinical+RNA preprocessing 및 frozen model 재현성 검증
+* [x] Patient-level feature contribution 계산
+* [x] Low / Middle / High-risk 대표 환자 선정
+* [x] Clinical+RNA Local XAI 수행
+* [ ] Clinical-only XAI
+* [ ] Clinical+Hallmark XAI
+* [ ] RNA gene biological interpretation
+
+### 2. 오늘 완료한 작업
+
+* `04_xai_interpretation.ipynb`에서 Clinical+RNA XAI 진행
+
+* Clinical+RNA 모델의 non-zero feature 24개 확인
+  * Clinical: 3개
+  * RNA: 21개
+
+* Clinical+RNA Global XAI 완료
+  * CoxNet coefficient의 sign과 magnitude를 이용하여 각 feature의 risk 방향과 상대적 영향 확인
+  * Clinical feature와 RNA feature를 구분하여 시각화
+  * Global XAI Figure 5 생성
+
+* 기존 Clinical+RNA preprocessing pipeline 재현
+  * Train cohort: 370 patients
+  * Test cohort: 80 patients
+  * low-expression filtering 후 RNA: 14,220 genes
+  * MAD 기반 Top-500 gene selection
+  * Clinical 10 + RNA 500 = 총 510 input features
+  * 기존 frozen model과 동일한 preprocessing 및 feature structure 재구성
+
+* Frozen Clinical+RNA model 재현성 확인
+  * 기존 frozen model과 재구성 model의 coefficient 차이 ≈ 0
+  * 기존 `test_predictions.csv`와 재계산한 Test risk score 차이 ≈ 0
+  * 기존 분석에서 확정한 frozen model을 정상적으로 재현했음을 확인
+
+* Patient-level Local XAI 구현
+  * Test 환자별로 `standardized feature × coefficient` contribution 계산
+  * Clinical+RNA model의 non-zero 24개 feature를 대상으로 환자별 contribution 산출
+  * 각 feature contribution의 합으로 Cox linear predictor를 재구성하여 기존 risk score와 일치함을 확인
+
+* Test cohort에서 대표 환자 3명 선정
+  * Low-risk patient
+  * Middle-risk patient
+  * High-risk patient
+
+* Clinical+RNA Local XAI 완료
+  * 대표 환자별 risk 증가 방향 contribution과 risk 감소 방향 contribution 확인
+  * Low / Middle / High-risk 환자의 feature contribution을 비교할 수 있도록 시각화
+  * Local XAI Figure 6 생성
+
+### 3. 주요 결과
+
+* Clinical+RNA Global XAI: 완료
+
+* Clinical+RNA Local XAI: 완료
+
+* Clinical+RNA frozen model non-zero features
+  * 총 24개
+  * Clinical: 3개
+  * RNA: 21개
+
+* Clinical+RNA preprocessing 재현
+  * low-expression filtering 후: 14,220 genes
+  * MAD Top-K: 500 genes
+  * Clinical: 10 features
+  * 최종 model input: 510 features
+
+* Frozen model reproducibility
+  * coefficient difference ≈ 0
+  * Test risk-score difference ≈ 0
+
+* Patient-level explanation
+  * 각 환자의 Cox risk score를 `standardized feature × coefficient` contribution으로 직접 분해
+  * Test 환자별 non-zero 24개 feature contribution 계산
+  * contribution 합으로 기존 frozen model의 risk score를 재현
+
+* Local XAI 대표 환자
+  * Low-risk
+  * Middle-risk
+  * High-risk
+  * 총 3명 선정
+
+* Figure 생성
+  * Figure 5: Clinical+RNA Global XAI
+  * Figure 6: Clinical+RNA Local XAI
+
+### 4. 생성/수정된 파일
+
+* `notebooks/04_xai_interpretation.ipynb`
+
+  * Clinical+RNA frozen CoxNet의 Global / Local XAI 및 model reproducibility 검증
+
+* `reports/figures/fig5_clinical_rna_nonzero_coefficients.png`
+
+  * Clinical+RNA CoxNet의 non-zero 24개 feature에 대한 coefficient 기반 Global XAI
+
+* `reports/figures/fig6_clinical_rna_local_explanations.png`
+
+  * Low / Middle / High-risk 대표 Test 환자 3명의 patient-level Local XAI
+  
+* `reports/figures/fig6_high_risk_local_contributions.png`
+
+  * High-risk 대표 환자의 feature contribution Local XAI
+
+* `reports/figures/fig6_middle_risk_local_contributions.png`
+
+  * Middle-risk 대표 환자의 feature contribution Local XAI
+
+* `reports/figures/fig6_low_risk_local_contributions.png`
+
+  * Low-risk 대표 환자의 feature contribution Local XAI
+
+### 5. 오늘 결정한 분석 기준
+
+* XAI 과정에서도 기존 frozen model을 유지하고 재학습하지 않음
+
+* Clinical+RNA model의 Global XAI는 CoxNet coefficient를 직접 이용
+  * coefficient > 0: 높은 Cox linear predictor 방향
+  * coefficient < 0: 낮은 Cox linear predictor 방향
+  * coefficient magnitude: standardized model scale에서 상대적 영향 확인
+
+* Patient-level Local XAI는 별도의 surrogate model을 사용하지 않고 CoxNet 자체의 additive structure를 이용
+
+* 환자별 Local contribution은 다음과 같이 정의
+
+  `contribution_j = standardized feature_j × coefficient_j`
+
+* 전체 feature contribution의 합이 해당 환자의 Cox linear predictor를 재현하는지 확인하여 Local XAI 계산의 정확성을 검증
+
+* Test cohort는 XAI를 위한 모델 재학습이나 feature selection에 사용하지 않음
+
+* Local XAI presentation을 위해 Test cohort에서 Low / Middle / High-risk 대표 환자 3명을 선정
+
+* SHAP을 필수 분석으로 추가하지 않고 CoxNet의 직접적인 coefficient / contribution 기반 설명을 primary XAI 방법으로 유지
+
+### 6. 확인해야 할 문제 / 미완료
+
+* [ ] Clinical-only XAI
+  * Clinical-only CoxNet의 non-zero clinical features 해석
+  * coefficient 기반 Global XAI 정리
+
+* [ ] Clinical+Hallmark XAI
+  * non-zero Hallmark / clinical feature 확인
+  * pathway coefficient 방향 및 magnitude 해석
+  * pathway-level visualization 생성
+
+* [ ] RNA gene biological interpretation
+  * Clinical+RNA non-zero RNA 21개 gene의 biological relevance 조사
+  * KIRC / cancer progression과 관련된 기존 연구 근거 확인
+  * 과도한 인과적 해석을 피하고 모델 association과 기존 biological evidence를 구분하여 기술
+
+* [ ] XAI 결과를 Streamlit / inference pipeline에서 재사용할 수 있도록 artifact 및 function 형태로 정리
+
+* [ ] Molecular Twin 구현
+
+* [ ] Train distribution 기반 OOD detection 구현
+
+* [ ] prediction → XAI → Molecular Twin → OOD inference pipeline 연결
+
+* [ ] Streamlit end-to-end demo 구현
+
+* [ ] README 및 최종 portfolio documentation 작성
+
+### 7. GitHub 상태
+
+* Commit: **미확인**
+
+* Push: **미확인**
+
+* Commit message: **미확인**
+
+### 8. 현재 프로젝트 진행 위치
+
+Cohort / Split / QC ✅  
+→ RNA preprocessing ✅  
+→ RNA-only CoxNet ✅  
+→ Clinical-only CoxNet ✅  
+→ Clinical+RNA CoxNet ✅  
+→ Clinical+Hallmark CoxNet ✅  
+→ Validation model selection / freeze ✅  
+→ Untouched Test evaluation ✅  
+→ Bootstrap / Uno C / td-AUC / Brier-IBS / calibration ✅  
+→ Result visualization ✅  
+→ Clinical+RNA Global XAI ✅  
+→ Clinical+RNA Local XAI ✅  
+→ **Clinical-only XAI ← 현재 위치**  
+→ Clinical+Hallmark XAI  
+→ RNA gene biological interpretation  
+→ Molecular Twin  
+→ OOD detection  
+→ Inference pipeline  
+→ Streamlit demo  
+→ README / 최종 패키징
+
+### 9. 다음 작업
+
+1. `notebooks/04_xai_interpretation.ipynb`에서 Clinical-only CoxNet XAI 진행
+   * non-zero clinical feature 확인
+   * coefficient sign / magnitude 해석
+   * 필요 시 Clinical-only Global XAI figure 생성
+
+2. Clinical+Hallmark CoxNet XAI 진행
+   * non-zero clinical / Hallmark features 확인
+   * 주요 Hallmark pathway의 coefficient 방향과 magnitude 분석
+   * pathway-level XAI figure 생성
+
+3. Clinical+RNA의 non-zero RNA 21개 gene에 대한 biological interpretation 수행
+   * gene symbol 확인
+   * KIRC 및 cancer progression 관련 근거 조사
+   * 모델에서 관찰된 association과 기존 biological evidence를 구분하여 정리
+
+4. Clinical+RNA / Clinical-only / Clinical+Hallmark XAI 결과를 하나의 해석 구조로 정리
+
+5. XAI 결과를 이후 Streamlit에서 사용할 수 있도록 reusable artifact / function 형태로 정리
+
+6. XAI 완료 후 Molecular Twin용 feature space 확정
+   * Train patients를 reference cohort로 사용
+   * patient similarity 계산
+   * top-k similar patients 반환
+
+7. Train distribution 기반 OOD score 및 warning threshold 구현
+   * Test cohort를 threshold 결정에 사용하지 않음
+
+8. risk prediction → XAI → Molecular Twin → OOD를 하나의 patient-level inference pipeline으로 연결
+
+9. Streamlit에서 patient 선택 → risk prediction → explanation → similar patients → OOD warning의 end-to-end demo 구현
