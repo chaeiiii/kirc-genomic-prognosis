@@ -868,3 +868,168 @@ Cohort / Split / QC ✅
 8. risk prediction → XAI → Molecular Twin → OOD를 하나의 patient-level inference pipeline으로 연결
 
 9. Streamlit에서 patient 선택 → risk prediction → explanation → similar patients → OOD warning의 end-to-end demo 구현
+
+# Project Progress Log
+
+## 2026-09-24
+
+### 1. 오늘의 목표
+
+* [x] 최종 분석 결과 정리 및 README 작성
+* [x] Frozen Clinical+RNA inference artifacts 저장 및 재현성 검증
+* [x] Patient-level inference pipeline 구축
+* [x] Molecular Twin / support 정보를 inference에 연결
+* [x] Streamlit 데모 구축 및 정상/low-support case 검증
+* [x] Git commit / push
+* [ ] Streamlit UI 최종 마무리
+* [ ] 전체 프로젝트 최종 QC
+* [ ] 발표자료 제작
+
+### 2. 오늘 완료한 작업
+
+* `notebooks/07_final_results_summary.ipynb`에서 최종 분석 결과를 정리하고 GitHub에 반영.
+* `README.md`를 작성하여 프로젝트 목적, 분석 pipeline, 주요 결과 및 실행 구조를 정리하고 GitHub에 반영.
+* 최종 Clinical+RNA 모델의 **frozen inference artifacts 5개**를 저장.
+* 저장된 artifacts를 다시 불러와 기존 prediction과 비교:
+
+  * Risk difference = **0.0**
+  * 저장/재로드 후 prediction이 정확히 재현됨을 확인.
+* `src/patient_inference.py` 구축:
+
+  * 학습 notebook과 독립적으로 frozen artifacts를 이용한 patient-level inference가 가능하도록 구현.
+  * `TCGA-BP-5169`에서 risk score **0.877533...**를 정확히 재현.
+* Molecular Twin / support 정보를 inference pipeline에 연결.
+* `app.py`를 작성하여 Streamlit patient-level prediction demo 구축.
+* Streamlit **1.64.0** 설치 및 실행 확인.
+* 정상-support 환자에서 inference 및 UI 정상 작동 확인.
+* Low-support case 검증:
+
+  * Patient: `TCGA-B0-5694`
+  * Similarity: **0.304**
+  * Low-support threshold: **0.381**
+  * `0.304 < 0.381`에서 warning이 정상적으로 표시됨.
+* 오늘 작업에 대한 Git commit / push 완료.
+
+### 3. 주요 결과
+
+* 기존 분석/모델링/XAI 결과를 실제 환자 inference에 사용할 수 있는 형태로 연결 완료.
+* 최종 Clinical+RNA 모델:
+
+  * Input: Clinical 10 + RNA Top-500 = **510 features**
+  * Non-zero coefficients: **24 (Clinical 3 + RNA 21)**
+  * Test Harrell C-index: **0.8920**
+  * Test Uno C-index (3y): **0.8970**
+  * AUC 1y / 3y: **0.8797 / 0.9440**
+  * IBS 1–3y: **0.0992**
+* Clinical+RNA vs Clinical-only:
+
+  * ΔC = **+0.005126**
+  * 95% CI = **-0.024295 ~ +0.044045**
+  * RNA 추가에 따른 명확하고 일관된 incremental discrimination benefit은 확인되지 않음.
+* Frozen artifact reload:
+
+  * Risk difference = **0.0**
+* Independent inference:
+
+  * `TCGA-BP-5169` risk = **0.877533...**
+* Low-support detection:
+
+  * `TCGA-B0-5694`: similarity **0.304 < 0.381**
+  * Warning 정상 작동.
+* 분석 결과 → frozen model → independent inference → support 판단 → Streamlit UI까지 하나의 재사용 가능한 pipeline으로 연결 완료.
+
+### 4. 생성/수정된 파일
+
+* `notebooks/07_final_results_summary.ipynb`
+
+  * 프로젝트 최종 분석 결과 요약 notebook.
+
+* `README.md`
+
+  * 프로젝트 목적, 방법, 결과 및 실행 구조 문서.
+
+* Frozen Clinical+RNA inference artifacts 5개
+
+  * 최종 모델과 preprocessing을 독립 inference에서 동일하게 재사용하기 위한 저장 artifacts.
+  * 개별 파일명/경로는 현재 기록에서 확인되지 않아 임의 기재하지 않음.
+
+* `src/patient_inference.py`
+
+  * Frozen artifacts 기반 patient-level risk 및 support inference module.
+
+* `app.py`
+
+  * Patient-level inference를 실행하고 결과 및 low-support warning을 표시하는 Streamlit application.
+
+* `reports/progress_log.md`
+
+  * 2026-09-24 작업 내용 추가.
+
+### 5. 오늘 결정한 분석 기준
+
+* 기존 529명 primary modeling cohort, PFI endpoint, Train/Validation/Test split 및 frozen model specification을 변경하지 않음.
+* Test 결과 확인 이후 feature/model/hyperparameter를 재선택하지 않음.
+* 신규 환자 prediction에서는 모델을 다시 학습하지 않고 **저장된 frozen preprocessing/model artifacts를 그대로 사용**.
+* Artifact 저장 후 prediction reproducibility를 반드시 확인하며 오늘 risk difference **0.0**을 검증.
+* Molecular Twin similarity는 prediction 자체를 변경하는 값이 아니라 **training cohort 내 support 정도를 나타내는 보조 정보**로 사용.
+* Similarity가 low-support threshold보다 낮은 경우 UI에서 별도 warning을 표시.
+* Clinical+RNA의 관측 discrimination이 높더라도 paired bootstrap 및 IBS 결과를 함께 고려하여 RNA의 추가 예측 가치를 과장하지 않음.
+
+### 6. 확인해야 할 문제 / 미완료
+
+* [ ] Streamlit UI 레이아웃 및 설명 문구 최종 정리
+* [ ] 정상-support / low-support / 잘못된 입력에 대한 전체 demo flow QC
+* [ ] Frozen artifacts 5개의 실제 파일명·경로 및 dependency 최종 확인
+* [ ] `README.md`의 실행 방법과 최종 Streamlit 실행 과정 일치 여부 확인
+* [ ] 프로젝트 전체 notebook → processed data → artifact → inference 연결 관계 최종 QC
+* [ ] 발표용 핵심 figure/table 선정
+* [ ] 발표자료 제작 및 시연 시나리오 준비
+
+### 7. GitHub 상태
+- Commit: 완료
+- Commit hash: `eaadd50`
+- Push: 완료
+- Commit message: `Add Streamlit patient inference demo`
+- 반영 파일:
+  - `app.py`
+  - `src/patient_inference.py`
+- Branch: `main`
+- Remote 상태: `origin/main`과 동기화 완료
+- Remaining uncommitted changes:
+  - `notebooks/03_results_visualization.ipynb`
+  - `notebooks/04_xai_interpretation.ipynb`
+
+현재 working tree는 clean하지 않음.
+위 두 notebook의 변경사항을 확인한 뒤 별도 commit 여부를 결정해야 함.
+
+### 8. 현재 프로젝트 진행 위치
+
+```text
+Data / Cohort
+→ Preprocessing
+→ Modeling / CV
+→ Final Test Evaluation
+→ XAI
+→ Molecular Twin / Support
+→ Frozen Model Artifacts
+→ Patient-level Inference
+→ Final Results Summary
+→ README
+→ Streamlit 핵심 기능 구현·검증
+                         ↑ 모두 완료
+→ [현재] Streamlit UI 마무리
+→ 전체 프로젝트 최종 QC
+→ 발표자료 제작
+→ 최종 발표
+```
+
+### 9. 다음 작업
+
+1. `app.py`의 Streamlit UI를 최종 정리하고 개발용 출력 제거.
+2. 정상-support 환자와 `TCGA-B0-5694` low-support 환자로 전체 demo flow 재검증.
+3. 누락/잘못된 입력에 대한 예외처리 확인.
+4. Frozen artifacts → `patient_inference.py` → `app.py` 연결을 최종 smoke test.
+5. README 실행 방법과 실제 실행 과정을 대조하여 필요한 부분만 수정.
+6. 프로젝트 전체 결과 파일 및 notebook 연결 관계를 최종 QC하고 분석 코드를 freeze.
+7. 발표에 사용할 핵심 성능 결과, XAI 결과, patient inference 및 support-warning 화면을 선정.
+8. 발표자료 제작 및 실제 시연 순서 준비.
