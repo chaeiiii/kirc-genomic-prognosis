@@ -3,51 +3,88 @@
 ## Target
 - Project completion target: **2026-09-28**
 - Daily work budget: **approximately 5 hours**
-- Current baseline: Train / Validation / Test split completed and QC passed
-- Current next stage: **Train-only leakage-safe RNA preprocessing**
+- Current status (2026-09-24): core modeling, frozen Test evaluation, and Clinical+RNA Global/Local XAI completed
+- Current next stage: **remaining XAI → reusable inference pipeline → Molecular Twin/OOD → Streamlit**
 
 ## Final Scope by 2026-09-28
 
-The project is planned to include all of the following components.
+### Core survival modeling — completed
+1. Clinical-only CoxNet
+2. RNA-only CoxNet
+3. Clinical + RNA CoxNet
+4. Clinical + Hallmark CoxNet
 
-### Core survival modeling
-1. Clinical-only survival model
-2. RNA-only survival model
-3. Clinical + RNA survival model
-4. Clinical + Hallmark pathway survival model
-
-### Evaluation
-- C-index
+### Evaluation — completed
+- Harrell C-index
+- Uno C
 - 1-year and 3-year time-dependent AUC
-- Integrated Brier Score (IBS)
-- Risk-group visualization such as Kaplan-Meier curves when appropriate
+- Brier score / Integrated Brier Score
+- Calibration diagnostic
+- Bootstrap confidence intervals and paired model comparison
 
-### Interpretation
-- Patient-level risk score
-- Important clinical / molecular features
-- Hallmark pathway-level interpretation
+### XAI / biological interpretation
+- Clinical+RNA Global XAI — completed
+- Clinical+RNA patient-level Local XAI — completed
+- Clinical-only XAI
+- Clinical+Hallmark pathway XAI
+- Biological interpretation of selected RNA genes
+- Reusable patient-level contribution output for inference/Streamlit
+
+### Reusable patient inference
+The final prototype will support **two input modes that share the same frozen inference engine**.
+
+#### Mode A — Demo Patient
+- Select a held-out TCGA-KIRC Test patient
+- Load that patient's existing Clinical + RNA TPM profile
+- Run the frozen inference pipeline
+- Display risk, XAI, Molecular Twin, and OOD output
+- This is the primary presentation/demo path
+
+#### Mode B — New Patient
+- Enter required Clinical variables
+- Upload a compatible tumor RNA expression profile in TPM format
+- Validate input schema and required genes
+- Apply **Train-fitted preprocessing only**
+- Run the same frozen Clinical+RNA CoxNet used in Demo Patient mode
+- Display risk, XAI, Molecular Twin, and OOD output
+
+The New Patient mode is a **research-prototype inference interface**, not a clinically validated deployment. It does not accept raw FASTQ; RNA input is assumed to have already been quantified to the required TPM/gene-ID schema.
 
 ### Molecular Twin
-- Query patient → top-k similar patients
-- Similarity computed in a predefined standardized molecular/pathway feature space
-- Display similarity, PFI/event, and selected clinical characteristics
-- MVP implementation only; no deep representation learning required
+- Query patient → top-k similar **Train** patients
+- Similarity computed in a predefined, standardized molecular/pathway representation
+- Display similarity plus selected reference information such as PFI/event and clinical characteristics
+- Retrieval is explanatory/reference functionality, not a separate prognosis model
+- MVP only; no deep representation learning required
 
 ### OOD detection
 - Train-distribution-based distance score
-- Warning for patients far from the training distribution
-- Threshold determined without using the final Test set
-- MVP distance-based implementation only
+- Warning when an input is far from the training distribution
+- Reference distribution and threshold determined without the final Test set
+- OOD means limited similarity to the training distribution; it does not by itself mean the prediction is wrong
 
 ### Streamlit demo
-- Patient selection / input
-- Predicted risk score and risk group
-- Important features/pathways
-- Molecular Twin results
-- OOD warning
-- Simple survival/risk visualization
+Two input tabs/modes:
+1. **Demo Patient** — choose a held-out TCGA Test patient
+2. **New Patient** — Clinical input + compatible RNA TPM upload
 
-## Scientific Rules
+Both modes call the same analysis pipeline:
+
+```
+Input
+→ validation
+→ frozen preprocessing
+→ frozen Clinical+RNA CoxNet
+→ PFI prognostic risk score / risk group
+→ patient-level XAI
+→ Molecular Twin
+→ OOD warning
+→ patient report
+```
+
+The app must clearly state that it is a research prototype and is not validated for clinical use.
+
+## Scientific / Engineering Rules
 
 - Patient-level analysis
 - Primary endpoint: PFI
@@ -58,143 +95,176 @@ The project is planned to include all of the following components.
   - Test: 80
 - Stratification: pfi_event
 - Random seed: 42
-- The same split must be used for all four model families
+- Same split for all model families
 - Train data only for:
   - low-expression filtering
   - scaling fit
   - feature selection
   - hyperparameter tuning
+  - risk-group threshold when applicable
+  - Molecular Twin reference construction
   - OOD reference distribution / threshold construction
-- Validation is used for model/hyperparameter selection
-- Test is reserved for final evaluation after the pipeline is frozen
-- Unknown values and results must never be guessed
+- Validation used for model/hyperparameter selection where applicable
+- Test remains held out from training/tuning
+- No refitting preprocessing on a new patient
+- New Patient mode must use saved Train-derived gene list, feature order, encoding, scaling, and frozen model parameters
+- New Patient input must be validated before inference
+- Raw FASTQ processing is outside the application scope
+- External hospital TPM data may have platform/pipeline/batch differences; compatibility with the input schema does not constitute external clinical validation
+- Unknown values/results must never be guessed
 - QC issues take priority over the calendar
 
-## Schedule
+## Updated Schedule
 
-### 2026-09-22 — RNA preprocessing + Clinical preprocessing
-**5 hours**
+### 2026-09-24 — XAI completion + inference preparation
+**~5 hours**
 
-1. 0.5 h — Verify local Git/data synchronization and load fixed split
-2. 1.0 h — Split RNA matrix by existing `splits.csv` and QC patient alignment
-3. 1.5 h — Train-only low-expression filtering
-   - Criterion: TPM >= 1 in at least 20% of Train patients
-   - Apply Train-derived gene list unchanged to Validation/Test
-4. 1.0 h — `log2(TPM + 1)` transform and QC
-5. 1.0 h — Clinical feature QC / encoding plan and preprocessing setup
-
-**Completion criteria**
-- RNA Train/Validation/Test matrices aligned to 370/79/80 patients
-- Final retained gene list recorded
-- No NaN/Inf introduced by transformation
-- Clinical preprocessing rules documented and ready for modeling
-
-### 2026-09-23 — Clinical CoxNet + RNA CoxNet
-**5 hours**
-
-1. 1.0 h — Complete Clinical preprocessing
-2. 1.5 h — Clinical CoxNet baseline with Train/CV
-3. 2.0 h — RNA CoxNet pipeline and first tuning pass
-4. 0.5 h — Validation comparison table
+1. Clinical-only XAI
+2. Clinical+Hallmark pathway XAI
+3. Biological interpretation of selected Clinical+RNA genes
+4. Audit the exact frozen Clinical+RNA preprocessing sequence
+5. Identify/save all Train-derived inference artifacts:
+   - clinical encoding rules
+   - retained/selected RNA genes
+   - feature order
+   - Train-fitted scaling parameters
+   - frozen model parameters
+   - risk-group threshold if used
 
 **Completion criteria**
-- Clinical model runs end-to-end
-- RNA model runs end-to-end
-- Validation C-index available for both
-- Preprocessing remains leakage-safe
+- Required XAI/biological interpretation is complete
+- Exact preprocessing sequence for one-patient inference is documented
+- No Test-derived preprocessing parameters are introduced
+- Required inference artifacts are identified and reproducible
 
-### 2026-09-24 — Combined model + Hallmark model
-**5 hours**
+### 2026-09-25 — New-patient inference pipeline
+**~5 hours — ⏳ core engineering day**
 
-1. 1.5 h — Clinical + RNA CoxNet
-2. 1.0 h — Ensembl/gene symbol mapping for Hallmark analysis
-3. 1.0 h — Hallmark pathway score matrix generation
-4. 1.5 h — Clinical + Hallmark CoxNet
-
-**Completion criteria**
-- All four core model families run successfully
-- Patient × Hallmark matrix available
-- Validation predictions available for all models
-
-### 2026-09-25 — Model selection and freeze
-**5 hours**
-
-1. 1.5 h — Validation-based hyperparameter tuning / cleanup
-2. 1.0 h — C-index + 1y/3y td-AUC + IBS on Train/Validation as appropriate
-3. 1.0 h — Compare four models
-4. 1.0 h — Define patient-level risk score / risk-group procedure
-5. 0.5 h — Freeze preprocessing + model configuration before Test evaluation
+1. Define Clinical input schema
+2. Define RNA TPM upload schema
+3. Implement input validation
+4. Implement reusable frozen preprocessing
+5. Implement `predict_patient()` / equivalent patient-level inference
+6. Connect patient-level XAI
+7. Create at least one held-out Test patient as an example input
+8. Run an inference parity test:
+   - existing frozen Test risk score
+   - new one-patient inference risk score
+   - values must agree within numerical tolerance
 
 **Completion criteria**
-- Final model settings chosen without Test-set optimization
-- Four-model validation comparison table complete
-- Risk score generation works at patient level
+- A single Clinical + RNA TPM patient can be analyzed without notebook-wide batch processing
+- Frozen preprocessing is reused rather than refit
+- Example held-out Test patient reproduces the existing frozen prediction
+- Invalid/missing input is detected before prediction
 
 ### 2026-09-26 — Molecular Twin + OOD
-**5 hours**
+**~5 hours**
 
-1. 1.5 h — Implement Molecular Twin top-k retrieval
-2. 1.0 h — Add similarity, clinical variables, PFI/event output
-3. 1.5 h — Implement Train-distribution distance-based OOD score
-4. 0.5 h — Set/check OOD threshold using Train/Validation only
-5. 0.5 h — Wrap both features as reusable functions
-
-**Completion criteria**
-- One patient can retrieve top-k similar Train patients
-- OOD score and warning can be produced for a patient
-- Neither feature uses Test data to define thresholds/settings
-
-### 2026-09-27 — Streamlit MVP
-**5 hours**
-
-1. 1.0 h — App skeleton and model/data loading
-2. 1.0 h — Patient selection + risk score
-3. 1.0 h — Feature/pathway explanation
-4. 1.0 h — Molecular Twin display
-5. 0.5 h — OOD warning
-6. 0.5 h — Survival/risk visualization and basic UI cleanup
+1. Freeze the representation used for patient similarity
+2. Implement top-k Molecular Twin retrieval using Train patients as references
+3. Return similarity and selected reference-patient information
+4. Build Train-distribution-based OOD score
+5. Determine OOD warning threshold without Test-set tuning
+6. Wrap Twin and OOD as reusable functions
+7. Connect both to the same patient inference output
 
 **Completion criteria**
-- Streamlit runs end-to-end locally
-- A selected patient shows prediction, explanation, twins, and OOD status
-- Demo flow can be completed without notebook interaction
+- Any valid query patient can retrieve top-k Train reference patients
+- OOD score/warning is returned
+- Test data are not used to define Twin/OOD settings or thresholds
+- Demo Patient and New Patient inputs can use the same Twin/OOD functions
 
-### 2026-09-28 — Final Test evaluation + packaging
-**5 hours**
+### 2026-09-27 — Streamlit MVP with two input modes
+**~5 hours — ⏳ integration day**
 
-1. 1.0 h — Confirm pipeline/model freeze and run final Test evaluation once
-2. 1.0 h — Final model comparison table and figures
-3. 1.0 h — End-to-end Streamlit test and bug fixes
-4. 1.0 h — README / reproducibility / project structure cleanup
-5. 0.5 h — Demo scenario rehearsal
-6. 0.5 h — Final file/path/Git checks
+1. App skeleton and artifact/model loading
+2. **Demo Patient tab**
+   - choose held-out TCGA Test patient
+   - run complete analysis
+3. **New Patient tab**
+   - enter Clinical variables
+   - upload RNA TPM file
+   - validate and run complete analysis
+4. Display:
+   - PFI prognostic risk score / risk group
+   - patient-level XAI
+   - Molecular Twin results
+   - OOD warning
+5. Add research-use limitation notice
+6. Basic UI/error handling
 
 **Completion criteria**
-- Final Test C-index / td-AUC / IBS recorded
-- Final comparison figures/tables available
-- Streamlit demo works
-- README explains data, methods, results, and demo usage
+- Demo Patient mode works end-to-end
+- New Patient mode works end-to-end with a valid example file
+- Both modes call the same frozen inference engine
+- Demo can run without notebook interaction
+
+### 2026-09-28 — Final validation + packaging
+**~5 hours**
+
+1. End-to-end regression/parity checks
+2. Test invalid/missing RNA and Clinical inputs
+3. Confirm model/preprocessing artifacts are frozen and reproducible
+4. Final figures/tables and README
+5. Add architecture/data-flow diagram
+6. Document exact New Patient input format and example
+7. Document limitations:
+   - TCGA-based research cohort
+   - no external clinical validation
+   - TPM/pipeline/batch compatibility limitations
+   - not for clinical use
+8. Rehearse Demo Patient and New Patient presentation flows
+9. Final Git/file/path checks
+
+**Completion criteria**
+- Both Streamlit modes run locally
+- Existing frozen predictions are reproducible through the new inference path
+- README explains data, methods, evaluation, XAI, Twin, OOD, input format, and limitations
 - Repository is presentation-ready
 
 ## Priority if Schedule Slips
 
 Do not drop:
-1. Leakage-safe preprocessing
-2. Four core model comparison
-3. Validation-based model selection
-4. Final Test evaluation
-5. Hallmark interpretation
+1. Frozen-model scientific integrity / leakage-safe preprocessing
+2. Existing four-model evaluation
+3. XAI interpretation
+4. Reusable one-patient inference pipeline
+5. **Demo Patient Streamlit mode**
 
 Reduce complexity in this order if needed:
 1. UI styling
 2. Extra plots
 3. OOD sophistication
 4. Molecular Twin sophistication
+5. New Patient UI convenience features
 
-Molecular Twin, OOD, and Streamlit remain in the **target scope**, but must stay MVP-level so the scientific core is not compromised.
+The **New Patient inference architecture remains a target**, but if time becomes critical, preserve a working command/function-level New Patient inference path and prioritize a reliable Demo Patient Streamlit presentation.
 
 ## Final Deliverable
 
 By 2026-09-28 the intended deliverable is:
 
-**TCGA-KIRC Clinical/RNA PFI prediction → four-model comparison → patient risk score → Hallmark interpretation → Molecular Twin → OOD warning → Streamlit demo**
+**TCGA-KIRC Clinical/RNA PFI modeling and independent evaluation → XAI → frozen one-patient inference → Demo Patient + New Patient inputs → Molecular Twin → OOD warning → Streamlit research prototype**
+
+### Final user flow
+
+```
+A. Demo Patient
+Held-out TCGA Test patient selection
+                 ↓
+             Analyze
+                 ↓
+Risk → XAI → Molecular Twin → OOD
+
+B. New Patient
+Clinical input + compatible RNA TPM upload
+                 ↓
+        Input validation
+                 ↓
+             Analyze
+                 ↓
+Risk → XAI → Molecular Twin → OOD
+```
+
+Both paths use the **same frozen Clinical+RNA inference pipeline**.
