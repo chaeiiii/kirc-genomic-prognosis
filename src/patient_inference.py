@@ -354,3 +354,313 @@ def predict_patient(
         "top_contributions": contributions,
         "molecular_twins": twins,
     }
+
+# ============================================================
+# 13. Load real-time Molecular Twin artifacts
+# ============================================================
+
+from sklearn.metrics.pairwise import cosine_similarity
+
+
+twin_features = pd.read_csv(
+    RESULTS_DIR / "molecular_twin_features.csv"
+)
+
+twin_train_reference = pd.read_parquet(
+    RESULTS_DIR / "molecular_twin_train_reference.parquet"
+)
+
+support_config = pd.read_csv(
+    RESULTS_DIR / "molecular_support_config.csv"
+)
+
+twin_genes = twin_features["gene_id"].astype(str).tolist()
+
+twin_mean = twin_features["train_mean"].to_numpy(dtype=float)
+twin_scale = twin_features["train_scale"].to_numpy(dtype=float)
+
+support_threshold = float(
+    support_config.iloc[0]["threshold"]
+)
+
+
+# ============================================================
+# 14. New-patient preprocessing
+# ============================================================
+
+def preprocess_new_patient(
+    clinical_data,
+    rna_data
+):
+    """
+    Apply the frozen Clinical + RNA preprocessing to a new patient.
+
+    Parameters
+    ----------
+    clinical_data : dict
+        Clinical feature values for one new patient.
+
+    rna_data : pandas.Series
+        TPM expression values indexed by gene ID.
+
+    Returns
+    -------
+    X_scaled : ndarray, shape (1, n_model_features)
+        Frozen Clinical + RNA model input.
+
+    rna_log : pandas.Series
+        log2(TPM + 1) RNA values for the supplied genes.
+    """
+
+    clinical_df = pd.DataFrame(
+        [clinical_data]
+    )
+
+    # Ensure every required clinical feature exists
+    missing_clinical = [
+        feature
+        for feature in clinical_features
+        if feature not in clinical_df.columns
+    ]
+
+    if missing_clinical:
+        raise ValueError(
+            "Missing clinical features: "
+            + ", ".join(missing_clinical)
+        )
+
+    # Clinical preprocessing using frozen Train-fitted transformer
+    X_clin = clinical_preprocessor.transform(
+        clinical_df[clinical_features]
+    )
+
+    # Validate RNA
+    rna_data = rna_data.copy()
+    rna_data.index = rna_data.index.astype(str)
+
+    required_genes = set(selected_rna_genes)
+
+    missing_genes = sorted(
+        required_genes.difference(rna_data.index)
+    )
+
+    if missing_genes:
+        raise ValueError(
+            f"RNA input is missing {len(missing_genes)} "
+            "genes required by the frozen model."
+        )
+
+    selected_tpm = (
+        rna_data
+        .loc[selected_rna_genes]
+        .astype(float)
+    )
+
+    if selected_tpm.isna().any():
+        raise ValueError(
+            "RNA input contains missing TPM values."
+        )
+
+    if (selected_tpm < 0).any():
+        raise ValueError(
+            "TPM values must be non-negative."
+        )
+
+    # Same RNA transformation used during model development
+    selected_log = np.log2(
+        selected_tpm.to_numpy() + 1
+    ).reshape(1, -1)
+
+    X_raw = np.hstack([
+        X_clin,
+        selected_log
+    ])
+
+    # Frozen Train-fitted combined scaler
+    X_scaled = combined_scaler.transform(
+        X_raw
+    )
+
+    # Keep log-transformed RNA for Twin calculation
+    rna_log = np.log2(
+        rna_data.astype(float) + 1
+    )
+
+    return X_scaled, rna_log
+
+
+# ============================================================
+# 15. New-patient Molecular Twin / Support
+# ============================================================
+
+def calculate_new_patient_twins(
+    rna_log,
+    top_n=5
+):
+    """
+    Calculate Molecular Twins for a new patient using the
+    frozen Train-defined Top-500 RNA space.
+    """
+
+    missing_twin_genes = [
+        gene
+        for gene in twin_genes
+        if gene not in rna_log.index
+    ]
+
+    if missing_twin_genes:
+        raise ValueError(
+            f"RNA input is missing {len(missing_twin_genes)} "
+            "genes required for Molecular Twin analysis."
+        )
+
+    query_log = (
+        rna_log
+        .loc[twin_genes]
+        .to_numpy(dtype=float)
+    )
+
+    # Reproduce frozen Train-fitted StandardScaler.transform()
+    query_scaled = (
+        query_log - twin_mean
+    ) / twin_scale
+
+    query_scaled = query_scaled.reshape(1, -1)
+
+    # Safety check
+    if query_scaled.shape[1] != twin_train_reference.shape[1]:
+        raise ValueError(
+            "New-patient Twin feature dimension does not match "
+            "the frozen Train reference."
+        )
+
+    similarities = cosine_similarity(
+        query_scaled,
+        twin_train_reference.to_numpy()
+    )[0]
+
+    twin_result = pd.DataFrame({
+        "twin_patient_id":
+            twin_train_reference.index.astype(str),
+        "similarity": similarities,
+    })
+
+    twin_result = (
+        twin_result
+        .sort_values(
+            "similarity",
+            ascending=False
+        )
+        .head(top_n)
+        .reset_index(drop=True)
+    )
+
+    max_similarity = float(
+        twin_result.iloc[0]["similarity"]
+    )
+
+    nearest_patient = str(
+        twin_result.iloc[0]["twin_patient_id"]
+    )
+
+    support = {
+        "nearest_train_patient": nearest_patient,
+        "max_similarity": max_similarity,
+        "support_threshold": support_threshold,
+        "low_support": bool(
+            max_similarity < support_threshold
+        ),
+    }
+
+    # Add retrospective clinical / PFI information
+    # AFTER RNA-based similarity search.
+    # These variables are NOT used to calculate similarity.
+    twin_metadata = cohort[
+        [
+            "patient_id",
+            "age",
+            "gender",
+            "stage",
+            "grade",
+            "pfi_event",
+            "pfi_time",
+        ]
+    ].copy()
+
+    twin_metadata["patient_id"] = twin_metadata["patient_id"].astype(str)
+
+    twin_result = twin_result.merge(
+        twin_metadata,
+        left_on="twin_patient_id",
+        right_on="patient_id",
+        how="left",
+    )
+
+    twin_result = twin_result.drop(columns=["patient_id"])
+
+    return twin_result, support
+
+# ============================================================
+# 16. New-patient integrated inference
+# ============================================================
+
+def predict_new_patient(
+    clinical_data,
+    rna_data,
+    top_xai=10,
+    top_twins=5
+):
+    """
+    Integrated inference for a genuinely new patient.
+
+    No model fitting or parameter estimation is performed here.
+    All preprocessing/model parameters come from Train-fitted
+    frozen artifacts.
+    """
+
+    X_scaled, rna_log = preprocess_new_patient(
+        clinical_data,
+        rna_data
+    )
+
+    # Risk
+    risk_score = clinical_rna_model.predict(
+        X_scaled,
+        alpha=model_alpha
+    )[0]
+
+    # Local XAI
+    contribution_values = X_scaled[0] * beta
+
+    contributions = pd.DataFrame({
+        "feature": feature_names,
+        "contribution": contribution_values,
+    })
+
+    contributions["abs_contribution"] = (
+        contributions["contribution"].abs()
+    )
+
+    contributions = (
+        contributions
+        .sort_values(
+            "abs_contribution",
+            ascending=False
+        )
+        .head(top_xai)
+        .reset_index(drop=True)
+    )
+
+    # Molecular Twin + support
+    twins, support = calculate_new_patient_twins(
+        rna_log,
+        top_n=top_twins
+    )
+
+    return {
+        "clinical": clinical_data,
+        "risk_score": float(risk_score),
+        "molecular_support": support,
+        "top_contributions": contributions,
+        "molecular_twins": twins,
+    }
