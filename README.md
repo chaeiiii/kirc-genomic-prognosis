@@ -480,7 +480,144 @@ This project has several important limitations.
 
 ---
 
-## 17. Main Conclusion
+## 17. Streamlit Demo and New Patient Inference
+
+An interactive Streamlit application was implemented to demonstrate the
+patient-level inference workflow.
+
+```bash
+streamlit run app.py
+```
+
+The application provides two inference modes:
+
+### Existing TCGA Test Patient
+
+A patient from the held-out TCGA-KIRC Test cohort can be selected to inspect:
+
+- Clinical information
+- Clinical + RNA CoxNet relative risk score
+- Patient-level feature contributions
+- Molecular Support
+- Top-5 Molecular Twins
+
+This mode provides a reproducible demonstration using patients already included
+in the project Test cohort.
+
+### New Patient
+
+The application also supports inference for a new patient who was not
+preloaded into the application.
+
+The required clinical variables are:
+
+- Age
+- Gender
+- Pathologic stage
+- Histologic grade
+
+Supported categorical values are:
+
+```text
+Gender:
+FEMALE
+MALE
+
+Stage:
+Stage I
+Stage II
+Stage III
+Stage IV
+Unknown
+
+Grade:
+G1
+G2
+G3
+G4
+Unknown
+```
+
+RNA expression is uploaded as a CSV containing gene identifiers and TPM values:
+
+```csv
+gene_id,tpm
+ENSGXXXXXXXXXXX,12.34
+ENSGXXXXXXXXXXX,0.52
+ENSGXXXXXXXXXXX,7.81
+```
+
+The uploaded RNA profile must contain the genes required by the frozen
+Clinical+RNA model and Molecular Twin pipeline.
+
+For a new patient, the application performs:
+
+```text
+Clinical input + RNA TPM
+          │
+          ▼
+Frozen Train-derived preprocessing
+          │
+          ▼
+Frozen Clinical + RNA CoxNet
+          │
+          ├── Relative prognostic risk score
+          ├── Patient-level feature contributions
+          │
+          ▼
+RNA-based Molecular Twin search
+          │
+          ├── Top-5 similar Train patients
+          └── Train-derived Molecular Support assessment
+```
+
+No preprocessing parameters, feature-selection rules, scalers, model
+coefficients, or Molecular Support thresholds are refitted using the new
+patient.
+
+### New-patient parity QC
+
+The new-patient inference path was validated by submitting an existing Test
+patient (`TCGA-BP-5169`) through the new-patient interface using the patient's
+raw clinical variables and TPM profile.
+
+Results:
+
+```text
+Existing pipeline risk score : 0.8775333495883141
+New-patient pipeline         : 0.8775333629488457
+Absolute difference          : 1.34 × 10^-8
+
+Existing maximum similarity  : 0.65425265
+New-patient maximum similarity:
+0.6542525913044144
+
+Nearest Train patient:
+TCGA-BP-4799
+
+Low molecular support:
+False
+```
+
+The risk-score difference was within numerical floating-point precision, and
+the Molecular Twin / Molecular Support results were reproduced.
+
+The same patient was then evaluated through the complete Streamlit upload
+workflow, including a TPM CSV containing 19,962 genes. The application
+reproduced the expected risk score, nearest Train patient, molecular
+similarity, and support status.
+
+This provides an end-to-end consistency check across:
+
+**CSV input → frozen preprocessing → CoxNet inference → patient-level XAI →
+Molecular Twin → Molecular Support → Streamlit output.**
+
+The application is intended exclusively as a research and portfolio
+demonstration and is not a clinical decision-support system.
+
+---
+
+## 18. Main Conclusion
 
 Clinical variables provided strong prognostic discrimination in this TCGA-KIRC cohort.
 
