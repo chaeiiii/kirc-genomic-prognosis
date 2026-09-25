@@ -1033,3 +1033,181 @@ Data / Cohort
 6. 프로젝트 전체 결과 파일 및 notebook 연결 관계를 최종 QC하고 분석 코드를 freeze.
 7. 발표에 사용할 핵심 성능 결과, XAI 결과, patient inference 및 support-warning 화면을 선정.
 8. 발표자료 제작 및 실제 시연 순서 준비.
+
+## 2026-09-25
+
+### 1. 오늘의 목표
+
+- [x] New Patient inference pipeline 구현
+- [x] Streamlit New Patient 입력 기능 구현
+- [x] 기존 Test-patient pipeline과 New Patient pipeline parity QC
+- [x] Streamlit end-to-end inference QC
+- [x] New Patient 관련 코드 GitHub 반영
+
+### 2. 오늘 완료한 작업
+
+- `src/patient_inference.py`에 실제 신규 환자를 위한 inference pipeline 추가
+- 신규 환자 Clinical 입력 변수 확정
+  - age
+  - gender
+  - stage
+  - grade
+- 신규 환자의 RNA TPM 데이터를 입력받아 frozen preprocessing을 적용하도록 구현
+- 기존 Train-derived artifact만 사용하도록 구성
+  - frozen clinical preprocessor
+  - frozen combined scaler
+  - frozen Clinical+RNA CoxNet
+- 신규 환자의 patient-level feature contribution 계산 구현
+- Molecular Twin을 신규 환자에 대해 실시간 계산하도록 구현
+- Train reference와 cosine similarity를 이용해 Top-5 Molecular Twin 검색
+- Train-derived molecular support threshold를 이용한 low-support warning 구현
+- Molecular Twin 검색 후 Train 환자의 clinical/PFI metadata를 retrospective information으로 연결
+- Streamlit에 두 가지 inference mode 구현
+  - Existing TCGA Test Patient
+  - New Patient
+- New Patient mode에 Clinical 입력 UI 및 RNA TPM CSV 업로드 기능 추가
+
+### 3. 주요 결과
+
+#### New Patient parity QC
+
+기존 Test 환자 `TCGA-BP-5169`를 신규 환자 입력처럼 사용하여 기존 pipeline과 비교함.
+
+- Existing pipeline risk score: `0.8775333495883141`
+- New Patient pipeline risk score: `0.8775333629488457`
+- Absolute difference: `1.3360531569972522e-08`
+
+Molecular Support 비교:
+
+- Existing maximum similarity: `0.65425265`
+- New Patient maximum similarity: `0.6542525913044144`
+- Nearest Train patient: `TCGA-BP-4799` (동일)
+- Existing low-support: `False`
+- New Patient low-support: `False`
+
+New Patient Top-5 Molecular Twins:
+
+1. TCGA-BP-4799 — 0.654253
+2. TCGA-BP-4352 — 0.585815
+3. TCGA-B8-A54I — 0.585734
+4. TCGA-G6-A8L7 — 0.582847
+5. TCGA-BP-4761 — 0.568247
+
+Risk score 차이는 약 `1.34e-08`로 부동소수점 계산 수준이며,
+기존 inference와 신규 환자 inference가 사실상 동일한 결과를 재현함을 확인함.
+
+#### Streamlit end-to-end QC
+
+`TCGA-BP-5169`의 실제 RNA TPM 19,962 genes를 CSV로 생성하여
+Streamlit New Patient mode에 업로드함.
+
+Clinical input:
+
+- age: 70
+- gender: MALE
+- stage: Stage I
+- grade: G4
+
+Streamlit 결과:
+
+- Clinical+RNA CoxNet risk score: `0.878`
+- Nearest Train patient: `TCGA-BP-4799`
+- Maximum RNA similarity: `0.654`
+- Molecular support threshold: `0.381`
+- Molecular support: supported
+
+CLI parity 결과와 Streamlit 결과가 일치함을 확인함.
+
+### 4. 생성/수정된 파일
+
+- `app.py`
+  - Existing TCGA Test Patient / New Patient mode 구현
+  - Clinical 입력 UI
+  - RNA TPM CSV upload
+  - 신규 환자 prediction 결과 표시
+
+- `src/patient_inference.py`
+  - `preprocess_new_patient()`
+  - `calculate_new_patient_twins()`
+  - `predict_new_patient()`
+  - Molecular Twin retrospective metadata 연결
+
+- `TCGA-BP-5169_tpm.csv`
+  - Streamlit end-to-end QC용 임시 파일
+  - QC 완료 후 삭제
+  - GitHub에는 포함하지 않음
+
+### 5. 오늘 결정한 분석 기준
+
+- 신규 환자 Clinical 입력은 frozen model이 실제 사용하는 4개 변수만 사용
+  - age
+  - gender
+  - stage
+  - grade
+- gender category:
+  - FEMALE
+  - MALE
+- stage category:
+  - Stage I
+  - Stage II
+  - Stage III
+  - Stage IV
+  - Unknown
+- grade category:
+  - G1
+  - G2
+  - G3
+  - G4
+  - Unknown
+- 신규 환자 inference 과정에서 preprocessing/model fitting을 다시 수행하지 않음
+- Train-derived frozen preprocessing/model artifact만 사용
+- Molecular Twin similarity는 RNA expression만 사용
+- Clinical/PFI 정보는 similarity 검색 이후 retrospective information으로만 표시
+- Molecular support warning은 formal OOD classifier가 아닌 Train-distribution similarity heuristic으로 해석
+- CoxNet risk score는 absolute probability가 아닌 relative linear predictor로 표시
+
+### 6. 확인해야 할 문제 / 미완료
+
+- `notebooks/03_results_visualization.ipynb` 수정사항 검토 필요
+- `notebooks/04_xai_interpretation.ipynb` 수정사항 검토 필요
+- README에 New Patient 입력 방법 및 RNA CSV 형식 반영 필요
+- 최종 reproducibility / repository cleanup 필요
+- 발표용 Streamlit demo flow 최종 점검 필요
+
+### 7. GitHub 상태
+
+New Patient 기능 관련 다음 파일은 commit/push 완료:
+
+- `app.py`
+- `src/patient_inference.py`
+
+기존 작업 중인 notebook은 이번 commit에서 제외:
+
+- `notebooks/03_results_visualization.ipynb`
+- `notebooks/04_xai_interpretation.ipynb`
+
+### 8. 현재 프로젝트 진행 위치
+
+Data preparation
+→ Cohort / Split
+→ Leakage-safe preprocessing
+→ 4-model training
+→ Validation model selection
+→ Untouched Test evaluation
+→ Calibration / visualization
+→ Global XAI
+→ Patient-level XAI
+→ Molecular Twin
+→ Molecular Support warning
+→ Existing-patient Streamlit
+→ **New Patient inference + Streamlit + end-to-end QC 완료**
+→ README / reproducibility cleanup
+→ Final presentation preparation
+
+### 9. 다음 작업
+
+1. README에 New Patient 기능과 RNA 입력 형식 추가
+2. 남아 있는 `03_results_visualization.ipynb`, `04_xai_interpretation.ipynb` 변경사항 검토
+3. repository reproducibility / cleanup
+4. 최종 Streamlit demo 시나리오 점검
+5. 발표용 핵심 결과 및 프로젝트 설명 정리
