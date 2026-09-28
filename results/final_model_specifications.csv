@@ -1,0 +1,5 @@
+model,input,n_input_features,rna_top_k,l1_ratio,alpha_idx,cv_alpha_ratio,full_train_alpha,validation_harrell_c
+RNA-only,RNA Top-1000 MAD genes,1000,1000.0,0.75,27,0.07906,0.019114577707188597,0.7262617621899059
+Clinical-only,Age + Sex + Stage + Grade (10 encoded features),10,,0.9,37,0.030888,0.010057565713433423,0.7840034217279727
+Clinical+RNA,Clinical 10 + RNA Top-500 MAD genes,510,500.0,0.5,18,0.184207,0.1079631601142658,0.8135158254918734
+Clinical+Hallmark,Clinical 10 + 50 Hallmark pathway scores,60,,0.75,31,0.054287,0.021211534321841412,0.7733105218135158
