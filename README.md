@@ -414,6 +414,9 @@ kirc-genomic-prognosis/
 │   ├── processed/
 │   └── manifests/
 │
+├── models/
+│   └── frozen model and preprocessing artifacts
+│
 ├── notebooks/
 │   ├── 00_clinical_data_audit.ipynb
 │   ├── 01_rna_data_audit.ipynb
@@ -425,21 +428,34 @@ kirc-genomic-prognosis/
 │   └── 07_final_results_summary.ipynb
 │
 ├── results/
+│   ├── final_model_comparison.csv
+│   ├── final_model_specifications.csv
+│   ├── final_performance_summary.csv
+│   ├── test_predictions.csv
+│   ├── test_discrimination_metrics.csv
+│   ├── test_brier_ibs_metrics.csv
+│   ├── test_grouped_calibration.csv
+│   ├── test_harrell_c_bootstrap_ci.csv
+│   ├── test_harrell_c_difference_ci.csv
 │   ├── molecular_twin_results.csv
-│   ├── ood_results.csv
-│   ├── patient_molecular_support_summary.csv
 │   ├── molecular_twin_features.csv
 │   ├── molecular_twin_train_reference.parquet
 │   ├── molecular_support_config.csv
+│   ├── patient_molecular_support_summary.csv
+│   ├── ood_results.csv
 │   └── patient_inference_qc.csv
 │
 ├── reports/
 │   ├── figures/
-│   └── progress_log.md
+│   ├── progress_log.md
+│   └── project_plan.md
 │
+├── src/
+│   └── patient_inference.py
+│
+├── app.py
 ├── requirements.txt
 └── README.md
-```
 
 ---
 
@@ -599,8 +615,9 @@ Low molecular support:
 False
 ```
 
-The risk-score difference was within numerical floating-point precision, and
-the Molecular Twin / Molecular Support results were reproduced.
+The new-patient pathway reproduced the reference prediction with a negligible
+numerical difference in the risk score (1.34 × 10^-8), while the Molecular
+Twin and Molecular Support results were also reproduced.
 
 The same patient was then evaluated through the complete Streamlit upload
 workflow, including a TPM CSV containing 19,962 genes. The application
