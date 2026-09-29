@@ -1211,3 +1211,338 @@ Data preparation
 3. repository reproducibility / cleanup
 4. 최종 Streamlit demo 시나리오 점검
 5. 발표용 핵심 결과 및 프로젝트 설명 정리
+
+응. 아래를 **`reports/progress_log.md`의 기존 내용 맨 아래에 2026-09-28 기록으로 그대로 추가**하면 돼. 네가 작성한 내용에 어제 실제로 했던 **교육원 PC 결과파일 회수, Git 통합, 최신 작업 pull, Streamlit 실행 실패 원인 확인**까지 반영해서 수정했어. 
+
+응. 아래 버전으로 쓰면 돼. **`집 PC / 교육원 PC` 같은 개인적인 작업환경 표현은 전부 제거**하고, Git·artifact·deployment 관점에서 전문적으로 정리했어.
+
+기존 `progress_log.md`의 이전 날짜는 건드리지 말고 **맨 아래에 그대로 추가**하면 돼.
+
+## 2026-09-28
+
+### 1. 오늘의 목표
+
+- TCGA-KIRC 프로젝트 최종 결과 및 repository 상태 점검
+- Git 비추적 상태로 남아 있던 최종 모델 coefficient / performance 결과 회수
+- 로컬 및 원격 repository의 최신 작업 통합
+- 최종 발표 흐름 및 슬라이드 구성 정리
+- 기존 프로젝트 결과를 발표용 스토리라인에 맞게 재구성
+- `README.md` 최종 수정
+- Streamlit demo의 별도 실행 환경 재현 가능 여부 점검
+- 최종 발표 전 repository 및 demo 환경 QC
+
+### 2. 오늘 완료한 작업
+
+- repository 및 Git 상태를 점검함.
+- `data/processed/`에 존재하지만 Git에서 추적되지 않던 최종 모델 및 성능 관련 CSV를 확인함.
+- `git ls-files data/processed/*.csv` 결과가 비어 있음을 확인하여 해당 결과 파일들이 Git 추적 대상이 아님을 확인함.
+- 최종 결과 보존을 위해 필요한 coefficient / performance CSV 18개를 `results/`로 복사하고 Git 추적 대상으로 추가함.
+- 원격 repository의 최신 변경사항을 pull하여 기존 로컬 결과와 통합함.
+- merge conflict 없이 정상적으로 병합됨.
+- 다음 최신 분석 및 서비스 구현 결과가 repository에 정상적으로 통합된 것을 확인함.
+  - Molecular Twin / Molecular Support
+  - OOD
+  - Patient-level inference
+  - Streamlit prototype
+  - `notebooks/05_molecular_twin_ood.ipynb`
+  - `notebooks/06_patient_inference.ipynb`
+  - `notebooks/07_final_results_summary.ipynb`
+  - `src/patient_inference.py`
+  - `app.py`
+  - 관련 `results/` 산출물
+- 결과 파일 통합 이후 GitHub push를 완료하고 당시 repository가 `origin/main`과 동기화된 clean 상태임을 확인함.
+- 기존 TCGA-KIRC 분석 결과를 기반으로 최종 발표자료 구성 작업을 진행함.
+- 발표에서 단순 성능 나열이 아니라 다음 흐름이 드러나도록 프로젝트 스토리를 재구성함.
+  - PFI 예후 예측 문제 정의
+  - Clinical / RNA-seq 데이터 구성 및 전처리
+  - 4개 모델 비교
+  - 최종 Clinical+RNA 모델 평가
+  - Global / Local XAI
+  - Molecular Twin / Molecular Support
+  - OOD
+  - Frozen model 기반 patient-level inference
+  - Streamlit demo
+- Clinical+RNA가 관측상 가장 높은 Test discrimination을 보였지만 Clinical-only 대비 paired bootstrap ΔC의 95% CI가 0을 포함한다는 해석을 유지함.
+- 추가 Fig 7 / Fig 8 생성 필요성을 재검토하고, 기존 Fig 1~6과 Molecular Twin / OOD / inference / Streamlit 결과로 핵심 발표 흐름을 구성할 수 있으므로 필수 작업에서 제외함.
+- 새로운 preprocessing, feature selection, model retraining, hyperparameter tuning 또는 Test 재평가는 수행하지 않음.
+- 기존 frozen 분석 결과를 변경하지 않고 발표 및 배포 준비 단계로 진행함.
+- `README.md`를 최종 프로젝트 설명 및 발표 흐름에 맞게 수정하고 stage함.
+
+#### Streamlit deployment reproducibility 점검
+
+- 별도 실행 환경에서 Streamlit smoke test를 수행함.
+- 실행 과정에서 다음 frozen artifact를 찾을 수 없어 `FileNotFoundError`가 발생함.
+
+```text
+models/clinical_preprocessor.joblib
+```
+
+- `src/patient_inference.py`의 artifact loading 부분을 확인하여 inference에 필요한 frozen artifact 5개를 확정함.
+
+```text
+models/clinical_preprocessor.joblib
+models/combined_scaler.joblib
+models/clinical_rna_coxnet.joblib
+models/selected_rna_genes.joblib
+models/clinical_rna_config.joblib
+```
+
+- 해당 실행 환경의 `models/` 디렉터리에 frozen artifact가 존재하지 않음을 확인함.
+- `.gitignore`를 점검하여 다음 설정으로 인해 `models/` 전체가 Git 추적 대상에서 제외되어 있음을 확인함.
+
+```text
+# Models
+models/
+```
+
+- 따라서 기존 개발 환경에서는 정상적으로 동작했던 frozen model 기반 inference가 새로운 실행 환경에서는 repository만으로 재현되지 않는 문제를 확인함.
+- 이는 model training 또는 inference logic의 오류가 아니라 **frozen artifact의 배포 및 repository 관리 문제**로 판단함.
+- 모델을 재학습하여 대체하지 않고 기존에 prediction parity까지 검증한 frozen artifact를 그대로 사용하기로 함.
+- 검증된 frozen artifact가 새로운 실행 환경에서도 동일하게 사용될 수 있도록 artifact 관리 방식을 보완하기로 함.
+- 향후 프로젝트 완료 여부 판단 시 Git 동기화뿐 아니라 실행에 필요한 non-tracked artifact, 환경 의존성 및 새로운 실행 환경에서의 실행 가능성을 포함하는 **deployment reproducibility QC**를 수행하기로 함.
+
+### 3. 주요 결과
+
+오늘 새로운 모델 학습이나 데이터 전처리를 수행하지 않았으므로 아래 수치는 오늘 새롭게 산출된 값이 아니라 최종 발표 준비 과정에서 유지·확인한 프로젝트의 확정 결과임.
+
+- Primary modeling cohort: **529명**
+- PFI event:
+  - Event = 1: **159명**
+  - Event = 0: **370명**
+- Train / Validation / Test:
+  - Train: **370명**
+  - Validation: **79명**
+  - Test: **80명**
+- Event distribution:
+  - Train: **111 events**
+  - Validation: **24 events**
+  - Test: **24 events**
+- Raw protein-coding RNA TPM matrix:
+  - **529 × 19,962**
+- Train RNA preprocessing:
+  - Low-expression filtering 후 **14,220 genes**
+  - `log2(TPM+1)`
+  - MAD Top-500 selection
+- Final Clinical+RNA input:
+  - Clinical: **10 features**
+  - RNA: **500 features**
+  - Combined: **510 features**
+- Final Clinical+RNA CoxNet:
+  - `l1_ratio = 0.50`
+  - `n_alphas = 50`
+  - `alpha_min_ratio = 0.01`
+  - `max_iter = 100000`
+  - Best CV setting: **K=500, L1=0.50, alpha_idx=18**
+- Final model non-zero coefficients:
+  - Total: **24**
+  - Clinical: **3**
+  - RNA: **21**
+- Test Harrell C-index:
+  - RNA-only: **0.7145**
+  - Clinical-only: **0.8868**
+  - Clinical+RNA: **0.8920**
+  - Clinical+Hallmark: **0.8856**
+- Test Uno C-index (3-year):
+  - RNA-only: **0.7032**
+  - Clinical-only: **0.8798**
+  - Clinical+RNA: **0.8970**
+  - Clinical+Hallmark: **0.8682**
+- Clinical+RNA vs Clinical-only paired bootstrap:
+  - ΔC = **+0.005126**
+  - 95% CI = **-0.024295 ~ +0.044045**
+  - CI가 0을 포함하므로 RNA 추가에 따른 명확한 incremental discrimination benefit이 입증됐다고 해석하지 않음.
+- Frozen model reproducibility:
+  - Reload 후 risk difference = **0.0**
+- Patient inference 검증:
+  - `TCGA-BP-5169`
+  - Risk = **0.877533...**
+- Molecular support low-support 검증:
+  - `TCGA-B0-5694`
+  - Similarity = **0.304**
+  - Threshold = **0.381**
+  - Low-support warning 정상 작동
+- Cohort / split / preprocessing / modeling / evaluation 단계에서 새로운 분석 오류는 발견되지 않음.
+- 별도 실행 환경 점검을 통해 frozen model artifact의 repository 배포 문제가 추가 QC 항목으로 확인됨.
+
+### 4. 생성/수정된 파일
+
+#### Git 비추적 상태에서 회수하여 `results/`에 추가한 파일
+
+- `results/clinical_coxnet_coefficients.csv`
+- `results/clinical_coxnet_nonzero_features.csv`
+- `results/clinical_pathway_coxnet_coefficients.csv`
+- `results/clinical_pathway_coxnet_nonzero_features.csv`
+- `results/clinical_rna_coxnet_coefficients.csv`
+- `results/clinical_rna_coxnet_nonzero_features.csv`
+- `results/clinical_rna_nonzero_genes_annotated.csv`
+- `results/rna_coxnet_coefficients.csv`
+- `results/rna_coxnet_nonzero_genes.csv`
+- `results/final_model_comparison.csv`
+- `results/final_model_specifications.csv`
+- `results/final_performance_summary.csv`
+- `results/test_brier_ibs_metrics.csv`
+- `results/test_discrimination_metrics.csv`
+- `results/test_grouped_calibration.csv`
+- `results/test_harrell_c_bootstrap_ci.csv`
+- `results/test_harrell_c_difference_ci.csv`
+- `results/test_predictions.csv`
+
+총 **18개 결과 파일**을 Git 추적 가능한 `results/`에 보존함.
+
+#### 원격 repository와 동기화된 주요 파일
+
+- `app.py`
+- `src/patient_inference.py`
+- `notebooks/05_molecular_twin_ood.ipynb`
+- `notebooks/06_patient_inference.ipynb`
+- `notebooks/07_final_results_summary.ipynb`
+- `results/molecular_support_config.csv`
+- `results/molecular_twin_features.csv`
+- `results/molecular_twin_results.csv`
+- `results/molecular_twin_train_reference.parquet`
+- `results/ood_results.csv`
+- `results/patient_inference_qc.csv`
+- `results/patient_molecular_support_summary.csv`
+
+#### 기타
+
+- `README.md`
+  - 최종 프로젝트 설명 및 발표 준비에 맞춰 수정.
+  - Git stage까지 확인함.
+  - 해당 수정분의 최종 commit / push 여부는 다음 작업 시작 시 실제 Git 상태를 기준으로 확인함.
+
+### 5. 오늘 결정한 분석 기준
+
+- 최종 발표 단계에서 기존 분석 결과를 변경하기 위한 추가 model tuning을 수행하지 않음.
+- Primary modeling cohort **529명** 유지.
+- Endpoint는 **PFI** 유지.
+- 기존 event-stratified Train / Validation / Test split **370 / 79 / 80**, random seed **42** 유지.
+- RNA preprocessing은 기존 Train-derived pipeline 유지:
+  - protein-coding genes
+  - Train-derived low-expression filtering
+  - `log2(TPM+1)`
+  - Train-derived MAD Top-500
+- preprocessing, feature selection 및 scaling parameter를 Test data에서 재추정하지 않음.
+- Test 결과를 확인한 뒤 model / hyperparameter를 다시 선택하지 않음.
+- 발표에서는 동일한 4-model comparison을 유지:
+  - Clinical-only
+  - RNA-only
+  - Clinical+RNA
+  - Clinical+Hallmark
+- Clinical+RNA의 Test C-index가 관측상 가장 높다는 결과와 Clinical-only 대비 ΔC CI가 0을 포함한다는 결과를 함께 제시함.
+- RNA 추가 효과를 과장하여 해석하지 않음.
+- XAI는 model prediction에 대한 global / local interpretation으로 한정하고 인과적 biomarker 발견으로 확대 해석하지 않음.
+- Molecular Twin / Molecular Support는 유사한 Train 환자를 이용한 보조 설명 및 support 정보로 사용하며 별도의 예후 모델로 해석하지 않음.
+- OOD / support warning은 prediction error probability 또는 임상적 확신도로 해석하지 않음.
+- Streamlit은 연구용 patient-level inference prototype으로 설명하며 임상적 진단 또는 실제 의료 의사결정 도구로 표현하지 않음.
+- Fig 7 / Fig 8은 현재 최종 발표에 필수적이지 않다고 판단하여 추가 생성하지 않음.
+- 기존 frozen model을 새로운 실행 환경에서 재학습하여 대체하지 않고 동일 artifact를 사용함.
+- 프로젝트 완료 QC에 **deployment reproducibility / cross-environment reproducibility** 점검을 포함함.
+
+### 6. 확인해야 할 문제 / 미완료
+
+- 검증된 frozen artifact 5개의 repository 관리 및 배포 방식 보완:
+  - `clinical_preprocessor.joblib`
+  - `combined_scaler.joblib`
+  - `clinical_rna_coxnet.joblib`
+  - `selected_rna_genes.joblib`
+  - `clinical_rna_config.joblib`
+- 원격 repository에 반영된 frozen artifact를 새로운 실행 환경으로 동기화.
+- 동일 frozen artifact를 사용한 Streamlit 재실행.
+- Streamlit demo 최종 smoke test.
+- Demo Patient / New Patient 전체 inference flow 최종 확인.
+- `TCGA-BP-5169` inference 재현 확인.
+- `TCGA-B0-5694` low-support warning 확인.
+- 발표자료 전체 슬라이드 최종 검수.
+- 슬라이드 숫자와 `README.md` 및 final result 파일의 수치 일치 여부 확인.
+- Clinical+RNA와 Clinical-only 비교 해석이 과장되지 않았는지 최종 확인.
+- 발표용 figure의 축, 범례, caption 및 가독성 확인.
+- `README.md` 수정분의 최종 commit / push 상태 확인.
+- 발표자료 최종 파일 저장 및 발표 환경 정상 작동 확인.
+- 최종 repository / 실행환경 / 발표파일 패키징 확인.
+
+### 7. GitHub 상태
+
+- Branch: `main`
+- Git 비추적 상태로 존재하던 최종 결과 CSV 18개를 `results/`에 회수하여 repository에 통합함.
+- 원격 repository의 최신 Molecular Twin / OOD / inference / Streamlit 작업을 로컬 repository와 merge함.
+- merge conflict 없음.
+- 결과 통합 이후 push 완료 및 당시 `origin/main`과 동기화된 clean 상태를 확인함.
+- 이후 `README.md`를 추가 수정하고 `git add README.md`까지 실행한 기록이 있으므로 해당 README 수정분의 commit / push 여부는 다음 작업 시작 시 다시 확인함.
+- `models/`가 `.gitignore`에 포함되어 frozen artifact가 repository를 통해 전달되지 않는 문제를 확인함.
+- 검증된 frozen artifact의 repository 관리 방식을 보완한 뒤 새로운 실행 환경에서 재검증할 예정임.
+
+### 8. 현재 프로젝트 진행 위치
+
+```text
+TCGA-KIRC Clinical / RNA data acquisition
+        ✅
+Clinical-RNA patient matching
+        ✅
+Primary modeling cohort (529)
+        ✅
+Train / Validation / Test split
+        ✅
+RNA preprocessing / feature selection
+        ✅
+4-model CoxNet modeling / CV
+        ✅
+Model freeze
+        ✅
+Untouched Test evaluation
+        ✅
+C-index / TD-AUC / IBS / Calibration
+        ✅
+XAI
+        ✅
+Molecular Twin / Molecular Support
+        ✅
+OOD
+        ✅
+Frozen inference artifact 생성 및 parity 검증
+        ✅
+Patient-level inference
+        ✅
+Streamlit prototype 구현
+        ✅
+Final result CSV 회수 / GitHub 통합
+        ✅
+README / 최종 결과 정리
+        ✅
+        ↓
+최종 발표자료 및 발표 준비
+        🔄 현재 단계
+        ↓
+Frozen artifact repository / deployment 보완
+        🔄
+        ↓
+별도 실행 환경 Streamlit smoke test
+        ↓
+발표자료 / README / repository 최종 QC
+        ↓
+최종 발표
+```
+
+### 9. 다음 작업
+
+1. `git status`를 실행하여 `README.md` 및 `reports/progress_log.md`의 현재 상태 확인.
+2. 9/28 progress log를 저장하고 의도한 파일만 commit 대상에 포함되는지 확인.
+3. 원격 repository에서 새롭게 반영된 frozen artifact 변경사항을 pull.
+4. 다음 frozen artifact 5개가 새로운 실행 환경에 정상적으로 전달되었는지 확인:
+   - `clinical_preprocessor.joblib`
+   - `combined_scaler.joblib`
+   - `clinical_rna_coxnet.joblib`
+   - `selected_rna_genes.joblib`
+   - `clinical_rna_config.joblib`
+5. frozen artifact를 재학습하지 않고 동일 artifact를 사용하여 Streamlit 재실행.
+6. `TCGA-BP-5169`의 기존 inference 결과가 동일하게 재현되는지 확인.
+7. `TCGA-B0-5694`의 low-support warning이 동일하게 작동하는지 확인.
+8. Demo Patient → risk prediction → local contribution → Molecular Support → OOD warning의 전체 demo flow 확인.
+9. New Patient 입력 flow 최종 확인.
+10. 발표자료를 처음부터 끝까지 실제 발표 순서로 재생하며 cohort 수, event 수, feature 수 및 모델 성능을 최종 결과와 대조.
+11. Clinical+RNA Test C-index **0.8920**, Clinical-only **0.8868**, paired ΔC **+0.005126 (95% CI -0.024295 ~ +0.044045)**가 일관되게 제시되는지 확인.
+12. XAI의 non-zero **24개(Clinical 3 + RNA 21)**와 global / local explanation 의미 확인.
+13. Molecular Twin / OOD를 prediction probability 또는 임상적 confidence로 오해할 수 있는 표현이 없는지 확인.
+14. 발표자료 최종본을 저장하고 실제 발표 환경에서 figure, 글꼴, 레이아웃 및 화면 비율 확인.
+15. 마지막 `git status` / `git push` 확인 후 발표 버전으로 최종 freeze.
+```
